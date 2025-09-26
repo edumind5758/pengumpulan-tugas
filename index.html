@@ -335,6 +335,26 @@
             background: #e67e22;
         }
 
+        .connection-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 1000;
+            display: none;
+        }
+
+        .connection-status.online {
+            background-color: #28a745;
+        }
+
+        .connection-status.offline {
+            background-color: #dc3545;
+        }
+
         /* Media Queries untuk Responsif */
         @media (max-width: 768px) {
             .app-header h1 {
@@ -508,6 +528,10 @@
         </div>
     </div>
 
+    <div id="connectionStatus" class="connection-status">
+        <i class="fas fa-wifi"></i> <span id="connectionText">Online</span>
+    </div>
+
     <script>
         // Ganti dengan URL web app dari Google Apps Script
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0HzN8eH5tgZ4ujAvoRfe1DryKfSW4wp5rv8_2jNqLKRTbY_d63y8lYOZ0lFm7qE5k/exec';
@@ -559,78 +583,73 @@
             tableContainer.style.display = 'none';
         }
         
-        // Fungsi untuk mengambil data dari spreadsheet dengan pendekatan alternatif
-        async function loadData() {
-            try {
-                toggleDataLoading(true);
-                
-                // Pendekatan 1: Coba dengan fetch biasa
-                try {
-                    const timestamp = new Date().getTime();
-                    const response = await fetch(`${SCRIPT_URL}?action=getData&t=${timestamp}`, {
-                        method: 'GET',
-                        mode: 'cors',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.status === 'success') {
-                            return data.data;
-                        } else {
-                            throw new Error(data.message || 'Gagal memuat data');
-                        }
-                    }
-                } catch (fetchError) {
-                    console.log('Fetch gagal, mencoba pendekatan alternatif:', fetchError);
+        // Fungsi untuk memeriksa status koneksi
+        function updateConnectionStatus() {
+            const connectionStatus = document.getElementById('connectionStatus');
+            const connectionText = document.getElementById('connectionText');
+            
+            if (navigator.onLine) {
+                connectionStatus.className = 'connection-status online';
+                connectionText.innerHTML = '<i class="fas fa-wifi"></i> Online';
+                setTimeout(() => {
+                    connectionStatus.style.display = 'none';
+                }, 3000);
+            } else {
+                connectionStatus.className = 'connection-status offline';
+                connectionText.innerHTML = '<i class="fas fa-wifi-slash"></i> Offline';
+                connectionStatus.style.display = 'block';
+            }
+        }
+        
+        // Event listener untuk perubahan koneksi
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+        
+        // Fungsi untuk mengambil data dari spreadsheet dengan pendekatan yang lebih sederhana
+        function loadData() {
+            return new Promise((resolve, reject) => {
+                // Cek koneksi internet terlebih dahulu
+                if (!navigator.onLine) {
+                    reject(new Error('Tidak ada koneksi internet'));
+                    return;
                 }
                 
-                // Pendekatan 2: Gunakan JSONP
-                return new Promise((resolve, reject) => {
-                    // Buat fungsi callback global
-                    const callbackName = 'jsonpCallback_' + Math.floor(Math.random() * 1000000);
-                    window[callbackName] = function(response) {
-                        // Hapus fungsi callback global
-                        delete window[callbackName];
-                        
-                        if (response.status === 'success') {
-                            resolve(response.data);
+                // Gunakan XMLHttpRequest untuk kompatibilitas yang lebih baik
+                const xhr = new XMLHttpRequest();
+                const timestamp = new Date().getTime();
+                const url = `${SCRIPT_URL}?action=getData&t=${timestamp}`;
+                
+                xhr.open('GET', url, true);
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            try {
+                                const response = JSON.parse(xhr.responseText);
+                                if (response.status === 'success') {
+                                    resolve(response.data);
+                                } else {
+                                    reject(new Error(response.message || 'Gagal memuat data'));
+                                }
+                            } catch (e) {
+                                reject(new Error('Gagal memproses respons'));
+                            }
                         } else {
-                            reject(new Error(response.message || 'Gagal memuat data'));
+                            reject(new Error(`HTTP error! status: ${xhr.status}`));
                         }
-                    };
-                    
-                    // Buat script element
-                    const script = document.createElement('script');
-                    script.src = `${SCRIPT_URL}?action=getData&t=${Date.now()}&callback=${callbackName}`;
-                    script.onerror = function() {
-                        // Hapus fungsi callback global
-                        delete window[callbackName];
-                        reject(new Error('Gagal memuat data'));
-                    };
-                    
-                    // Tambahkan script ke DOM
-                    document.body.appendChild(script);
-                    
-                    // Hapus script setelah digunakan
-                    script.onload = function() {
-                        document.body.removeChild(script);
-                    };
-                    
-                    // Timeout untuk menghindari hanging
-                    setTimeout(() => {
-                        if (window[callbackName]) {
-                            delete window[callbackName];
-                            reject(new Error('Timeout saat memuat data'));
-                        }
-                    }, 10000); // 10 detik timeout
-                });
-            } catch (error) {
-                console.error('Error:', error);
-                throw error;
-            }
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    reject(new Error('Gagal terhubung ke server'));
+                };
+                
+                xhr.timeout = 10000; // 10 detik timeout
+                xhr.ontimeout = function() {
+                    reject(new Error('Request timeout'));
+                };
+                
+                xhr.send();
+            });
         }
         
         // Fungsi untuk menampilkan data di tabel
@@ -693,6 +712,12 @@
         document.getElementById('uploadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            // Cek koneksi internet
+            if (!navigator.onLine) {
+                showNotification('Tidak ada koneksi internet. Silakan cek koneksi Anda.', 'error');
+                return;
+            }
+            
             const namaGuru = document.getElementById('namaGuru').value;
             const kelas = document.getElementById('kelas').value;
             const judulTugas = document.getElementById('judulTugas').value;
@@ -722,35 +747,54 @@
                 };
                 
                 try {
-                    // Gunakan pendekatan fetch dengan mode no-cors
-                    const response = await fetch(SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify(data),
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                    // Gunakan XMLHttpRequest untuk upload
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', SCRIPT_URL, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
                     
-                    // Dengan mode no-cors, kita tidak bisa membaca response body
-                    // Jadi kita asumsikan berhasil jika tidak ada error
-                    showNotification('Tugas berhasil diupload!', 'success');
-                    document.getElementById('uploadForm').reset();
-                    document.getElementById('fileLabel').textContent = 'Pilih file tugas';
-                    
-                    // Tunggu sebentar sebelum refresh data
-                    setTimeout(async () => {
-                        try {
-                            await refreshData();
-                        } catch (error) {
-                            console.error('Error refreshing data:', error);
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4) {
+                            toggleLoading(false);
+                            
+                            if (xhr.status === 200) {
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    if (response.status === 'success') {
+                                        showNotification('Tugas berhasil diupload!', 'success');
+                                        document.getElementById('uploadForm').reset();
+                                        document.getElementById('fileLabel').textContent = 'Pilih file tugas';
+                                        
+                                        // Refresh data setelah upload
+                                        setTimeout(() => {
+                                            refreshData();
+                                        }, 2000);
+                                    } else {
+                                        showNotification('Gagal upload: ' + response.message, 'error');
+                                    }
+                                } catch (e) {
+                                    showNotification('Gagal memproses respons server', 'error');
+                                }
+                            } else {
+                                showNotification(`HTTP error! status: ${xhr.status}`, 'error');
+                            }
                         }
-                    }, 2000);
+                    };
+                    
+                    xhr.onerror = function() {
+                        toggleLoading(false);
+                        showNotification('Gagal terhubung ke server', 'error');
+                    };
+                    
+                    xhr.timeout = 30000; // 30 detik timeout untuk upload
+                    xhr.ontimeout = function() {
+                        toggleLoading(false);
+                        showNotification('Upload timeout. Coba lagi dengan file yang lebih kecil.', 'error');
+                    };
+                    
+                    xhr.send(JSON.stringify(data));
                 } catch (error) {
                     console.error('Error:', error);
                     showNotification('Terjadi kesalahan: ' + error.message, 'error');
-                } finally {
-                    // Sembunyikan loading
                     toggleLoading(false);
                 }
             };
@@ -770,45 +814,39 @@
         });
         
         // Event listener untuk tombol retry
-        document.getElementById('retryButton').addEventListener('click', async function() {
-            try {
-                await refreshData();
-            } catch (error) {
-                console.error('Error retrying:', error);
-            }
+        document.getElementById('retryButton').addEventListener('click', function() {
+            refreshData();
         });
         
         // Fungsi untuk refresh data
-        async function refreshData() {
-            try {
-                const data = await loadData();
-                displayData(data);
-            } catch (error) {
-                console.error('Error loading data:', error);
-                showDataError();
-                throw error;
-            }
+        function refreshData() {
+            toggleDataLoading(true);
+            
+            loadData()
+                .then(data => {
+                    displayData(data);
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    showDataError();
+                });
         }
         
         // Load data saat halaman dimuat
-        window.addEventListener('load', async function() {
-            try {
-                await refreshData();
-            } catch (error) {
-                console.error('Error loading data:', error);
-                // Tampilkan pesan error yang lebih user-friendly
-                showNotification('Gagal memuat data. Silakan refresh halaman atau coba lagi nanti.', 'error');
-            }
+        document.addEventListener('DOMContentLoaded', function() {
+            // Periksa status koneksi saat halaman dimuat
+            updateConnectionStatus();
+            
+            // Load data
+            refreshData();
+            
+            // Coba refresh data setiap 60 detik
+            setInterval(() => {
+                if (navigator.onLine) {
+                    refreshData();
+                }
+            }, 60000);
         });
-        
-        // Coba refresh data setiap 30 detik (opsional)
-        setInterval(async function() {
-            try {
-                await refreshData();
-            } catch (error) {
-                console.error('Error auto-refreshing data:', error);
-            }
-        }, 30000);
     </script>
 </body>
 </html>
