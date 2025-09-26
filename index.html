@@ -203,12 +203,6 @@
             border: 1px solid var(--danger-color);
         }
 
-        .notification.warning {
-            background-color: rgba(248, 150, 30, 0.1);
-            color: var(--warning-color);
-            border: 1px solid var(--warning-color);
-        }
-
         .loading {
             display: none;
             text-align: center;
@@ -216,31 +210,18 @@
         }
 
         .spinner {
-            display: none; /* Spinner disembunyikan */
+            border: 4px solid rgba(67, 97, 238, 0.1);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
         }
 
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-        }
-
-        .progress-container {
-            width: 100%;
-            background-color: #f3f3f3;
-            border-radius: 5px;
-            margin: 15px 0;
-            display: none;
-        }
-
-        .progress-bar {
-            width: 0%;
-            height: 20px;
-            background-color: var(--primary-color);
-            border-radius: 5px;
-            text-align: center;
-            color: white;
-            line-height: 20px;
-            font-size: 0.8rem;
         }
 
         .table-container {
@@ -374,11 +355,6 @@
             background-color: #dc3545;
         }
 
-        /* Hidden iframe for form submission */
-        #hiddenFrame {
-            display: none;
-        }
-
         /* Media Queries untuk Responsif */
         @media (max-width: 768px) {
             .app-header h1 {
@@ -447,7 +423,7 @@
     <div class="container">
         <div class="app-header">
             <h1><i class="fas fa-chalkboard-teacher"></i> Upload Tugas RPP Guru</h1>
-            <p>Z-Platform @Midarno</p>
+            <p>Platform untuk mengumpulkan tugas RPP secara digital</p>
         </div>
 
         <div class="stats-container">
@@ -483,11 +459,7 @@
                 <p>Sedang memproses...</p>
             </div>
             
-            <div id="progressContainer" class="progress-container">
-                <div id="progressBar" class="progress-bar">0%</div>
-            </div>
-            
-            <form id="uploadForm" target="hiddenFrame">
+            <form id="uploadForm">
                 <div class="form-group">
                     <label for="namaGuru">Nama Guru</label>
                     <input type="text" id="namaGuru" name="namaGuru" required placeholder="Masukkan nama lengkap">
@@ -495,7 +467,7 @@
                 
                 <div class="form-group">
                     <label for="kelas">Kelas</label>
-                    <input type="text" id="kelas" name="kelas" required placeholder="Contoh: 6C">
+                    <input type="text" id="kelas" name="kelas" required placeholder="Contoh: X IPA 1">
                 </div>
                 
                 <div class="form-group">
@@ -560,9 +532,6 @@
         <i class="fas fa-wifi"></i> <span id="connectionText">Online</span>
     </div>
 
-    <!-- Hidden iframe for form submission -->
-    <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
-
     <script>
         // Ganti dengan URL web app dari Google Apps Script
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0HzN8eH5tgZ4ujAvoRfe1DryKfSW4wp5rv8_2jNqLKRTbY_d63y8lYOZ0lFm7qE5k/exec';
@@ -586,19 +555,6 @@
         function toggleLoading(show) {
             const loading = document.getElementById('loading');
             loading.style.display = show ? 'block' : 'none';
-        }
-        
-        // Fungsi untuk menampilkan/menyembunyikan progress bar
-        function toggleProgress(show) {
-            const progressContainer = document.getElementById('progressContainer');
-            progressContainer.style.display = show ? 'block' : 'none';
-        }
-        
-        // Fungsi untuk update progress bar
-        function updateProgress(percent) {
-            const progressBar = document.getElementById('progressBar');
-            progressBar.style.width = percent + '%';
-            progressBar.textContent = percent + '%';
         }
         
         // Fungsi untuk menampilkan/menyembunyikan loading data
@@ -649,7 +605,7 @@
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('offline', updateConnectionStatus);
         
-        // Fungsi untuk mengambil data dari spreadsheet dengan pendekatan yang sangat sederhana
+        // Fungsi untuk mengambil data dari spreadsheet dengan pendekatan yang lebih sederhana
         function loadData() {
             return new Promise((resolve, reject) => {
                 // Cek koneksi internet terlebih dahulu
@@ -658,66 +614,41 @@
                     return;
                 }
                 
-                // Gunakan pendekatan JSONP saja untuk kesederhanaan
-                const callbackName = 'jsonpCallback_' + Math.floor(Math.random() * 1000000);
-                
-                // Set timeout untuk mencegah loading terus menerus
-                const timeoutId = setTimeout(() => {
-                    // Hapus fungsi callback global
-                    delete window[callbackName];
-                    // Hapus script element
-                    const script = document.getElementById(callbackName + '_script');
-                    if (script) {
-                        document.body.removeChild(script);
-                    }
-                    reject(new Error('Request timeout'));
-                }, 8000); // 8 detik timeout
-                
-                // Buat fungsi callback global
-                window[callbackName] = function(response) {
-                    // Hapus timeout
-                    clearTimeout(timeoutId);
-                    
-                    // Hapus fungsi callback global
-                    delete window[callbackName];
-                    
-                    // Hapus script element
-                    const script = document.getElementById(callbackName + '_script');
-                    if (script) {
-                        document.body.removeChild(script);
-                    }
-                    
-                    if (response && response.status === 'success') {
-                        resolve(response.data || []);
-                    } else {
-                        reject(new Error(response?.message || 'Gagal memuat data'));
-                    }
-                };
-                
-                // Buat script element untuk JSONP
-                const script = document.createElement('script');
-                script.id = callbackName + '_script';
+                // Gunakan XMLHttpRequest untuk kompatibilitas yang lebih baik
+                const xhr = new XMLHttpRequest();
                 const timestamp = new Date().getTime();
-                script.src = `${SCRIPT_URL}?action=getData&t=${timestamp}&callback=${callbackName}`;
+                const url = `${SCRIPT_URL}?action=getData&t=${timestamp}`;
                 
-                // Handle error
-                script.onerror = function() {
-                    // Hapus timeout
-                    clearTimeout(timeoutId);
-                    
-                    // Hapus fungsi callback global
-                    delete window[callbackName];
-                    
-                    // Hapus script element
-                    if (document.getElementById(callbackName + '_script')) {
-                        document.body.removeChild(document.getElementById(callbackName + '_script'));
+                xhr.open('GET', url, true);
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            try {
+                                const response = JSON.parse(xhr.responseText);
+                                if (response.status === 'success') {
+                                    resolve(response.data);
+                                } else {
+                                    reject(new Error(response.message || 'Gagal memuat data'));
+                                }
+                            } catch (e) {
+                                reject(new Error('Gagal memproses respons'));
+                            }
+                        } else {
+                            reject(new Error(`HTTP error! status: ${xhr.status}`));
+                        }
                     }
-                    
-                    reject(new Error('Gagal memuat data'));
                 };
                 
-                // Tambahkan script ke DOM
-                document.body.appendChild(script);
+                xhr.onerror = function() {
+                    reject(new Error('Gagal terhubung ke server'));
+                };
+                
+                xhr.timeout = 10000; // 10 detik timeout
+                xhr.ontimeout = function() {
+                    reject(new Error('Request timeout'));
+                };
+                
+                xhr.send();
             });
         }
         
@@ -798,89 +729,79 @@
                 return;
             }
             
-            // Cek ukuran file (maksimal 5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                showNotification('Ukuran file terlalu besar. Maksimal 5MB.', 'error');
-                return;
-            }
-            
-            // Tampilkan loading dan progress bar
+            // Tampilkan loading
             toggleLoading(true);
-            toggleProgress(true);
-            updateProgress(0);
             
             // Baca file sebagai base64
             const reader = new FileReader();
-            
-            // Progress event
-            reader.onprogress = function(event) {
-                if (event.lengthComputable) {
-                    const percentComplete = Math.round((event.loaded / event.total) * 100);
-                    updateProgress(percentComplete);
-                }
-            };
-            
             reader.onload = async function(event) {
                 const base64 = event.target.result.split(',')[1]; // Hapus header data URL
                 
-                // Buat form data untuk iframe submission
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = SCRIPT_URL;
-                form.target = 'hiddenFrame';
-                
-                // Tambahkan input fields
-                const jsonInput = document.createElement('input');
-                jsonInput.name = 'json';
-                jsonInput.value = JSON.stringify({
+                const data = {
                     namaGuru: namaGuru,
                     kelas: kelas,
                     judulTugas: judulTugas,
                     fileData: base64,
                     fileName: file.name,
                     mimeType: file.type
-                });
-                form.appendChild(jsonInput);
+                };
                 
-                // Tambahkan form ke body
-                document.body.appendChild(form);
-                
-                // Submit form
-                form.submit();
-                
-                // Hapus form dari body
-                document.body.removeChild(form);
-                
-                // Simulasi progress untuk user feedback
-                let progress = 0;
-                const progressInterval = setInterval(() => {
-                    progress += 10;
-                    if (progress > 90) progress = 90;
-                    updateProgress(progress);
-                }, 500);
-                
-                // Timeout untuk menunggu response
-                setTimeout(() => {
-                    clearInterval(progressInterval);
+                try {
+                    // Gunakan XMLHttpRequest untuk upload
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', SCRIPT_URL, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4) {
+                            toggleLoading(false);
+                            
+                            if (xhr.status === 200) {
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    if (response.status === 'success') {
+                                        showNotification('Tugas berhasil diupload!', 'success');
+                                        document.getElementById('uploadForm').reset();
+                                        document.getElementById('fileLabel').textContent = 'Pilih file tugas';
+                                        
+                                        // Refresh data setelah upload
+                                        setTimeout(() => {
+                                            refreshData();
+                                        }, 2000);
+                                    } else {
+                                        showNotification('Gagal upload: ' + response.message, 'error');
+                                    }
+                                } catch (e) {
+                                    showNotification('Gagal memproses respons server', 'error');
+                                }
+                            } else {
+                                showNotification(`HTTP error! status: ${xhr.status}`, 'error');
+                            }
+                        }
+                    };
+                    
+                    xhr.onerror = function() {
+                        toggleLoading(false);
+                        showNotification('Gagal terhubung ke server', 'error');
+                    };
+                    
+                    xhr.timeout = 30000; // 30 detik timeout untuk upload
+                    xhr.ontimeout = function() {
+                        toggleLoading(false);
+                        showNotification('Upload timeout. Coba lagi dengan file yang lebih kecil.', 'error');
+                    };
+                    
+                    xhr.send(JSON.stringify(data));
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('Terjadi kesalahan: ' + error.message, 'error');
                     toggleLoading(false);
-                    toggleProgress(false);
-                    
-                    // Asumsikan berhasil jika tidak ada error
-                    showNotification('Tugas berhasil diupload!', 'success');
-                    document.getElementById('uploadForm').reset();
-                    document.getElementById('fileLabel').textContent = 'Pilih file tugas';
-                    
-                    // Refresh data setelah upload
-                    setTimeout(() => {
-                        refreshData();
-                    }, 2000);
-                }, 8000); // 8 detik timeout
+                }
             };
             
             reader.onerror = function() {
-                toggleLoading(false);
-                toggleProgress(false);
                 showNotification('Gagal membaca file', 'error');
+                toggleLoading(false);
             };
             
             reader.readAsDataURL(file);
@@ -890,11 +811,6 @@
         document.getElementById('fileTugas').addEventListener('change', function(e) {
             const fileName = e.target.files[0]?.name || 'Pilih file tugas';
             document.getElementById('fileLabel').textContent = fileName;
-            
-            // Tampilkan ukuran file jika terlalu besar
-            if (e.target.files[0] && e.target.files[0].size > 5 * 1024 * 1024) {
-                showNotification('Ukuran file terlalu besar. Maksimal 5MB.', 'warning');
-            }
         });
         
         // Event listener untuk tombol retry
@@ -924,12 +840,12 @@
             // Load data
             refreshData();
             
-            // Coba refresh data setiap 120 detik (2 menit)
+            // Coba refresh data setiap 60 detik
             setInterval(() => {
                 if (navigator.onLine) {
                     refreshData();
                 }
-            }, 120000);
+            }, 60000);
         });
     </script>
 </body>
