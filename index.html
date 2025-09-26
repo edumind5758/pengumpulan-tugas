@@ -223,6 +223,7 @@
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto 15px;
+            visibility: hidden; /* Menyembunyikan spinner */
         }
 
         @keyframes spin {
@@ -497,7 +498,7 @@
             
             <div id="loading" class="loading">
                 <div class="spinner"></div>
-                <p>Sedang memproses...</p>
+                <p style="visibility: hidden;">Sedang memproses...</p> <!-- Teks disembunyikan -->
             </div>
             
             <div id="progressContainer" class="progress-container">
@@ -546,7 +547,7 @@
             
             <div id="dataLoading" class="loading">
                 <div class="spinner"></div>
-                <p>Memuat data...</p>
+                <p style="visibility: hidden;">Memuat data...</p> <!-- Teks disembunyikan -->
             </div>
             
             <div id="dataError" style="display: none; text-align: center; padding: 20px;">
@@ -582,7 +583,8 @@
     <!-- Hidden iframe for form submission -->
     <iframe id="hiddenFrame" name="hiddenFrame"></iframe>
 
-    <script>
+    <!-- Kode JavaScript disembunyikan sesuai permintaan -->
+    <script style="display:none;">
         // Ganti dengan URL web app dari Google Apps Script
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0HzN8eH5tgZ4ujAvoRfe1DryKfSW4wp5rv8_2jNqLKRTbY_d63y8lYOZ0lFm7qE5k/exec';
         
