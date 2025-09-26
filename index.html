@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Tugas RPP Guru</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .form-container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .data-container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: 600;
+        }
+        .notification {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload Tugas RPP Guru</h1>
+    
+    <div class="form-container">
+        <h2>Form Upload Tugas</h2>
+        <div id="notification" class="notification"></div>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="namaGuru">Nama Guru:</label>
+                <input type="text" id="namaGuru" name="namaGuru" required>
+            </div>
+            <div class="form-group">
+                <label for="kelas">Kelas:</label>
+                <input type="text" id="kelas" name="kelas" required>
+            </div>
+            <div class="form-group">
+                <label for="judulTugas">Judul Tugas:</label>
+                <input type="text" id="judulTugas" name="judulTugas" required>
+            </div>
+            <div class="form-group">
+                <label for="fileTugas">Upload Tugas:</label>
+                <input type="file" id="fileTugas" name="fileTugas" required>
+            </div>
+            <button type="submit">Upload Tugas</button>
+        </form>
+    </div>
+    
+    <div class="data-container">
+        <h2>Data Tugas yang Telah Diupload</h2>
+        <table id="tugasTable">
+            <thead>
+                <tr>
+                    <th>Nama Guru</th>
+                    <th>Kelas</th>
+                    <th>Judul Tugas</th>
+                    <th>Link Tugas</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data akan diisi oleh JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Ganti dengan URL web app dari Google Apps Script
+        const SCRIPT_URL = 'GANTI_DENGAN_URL_WEB_APP';
+        
+        // Fungsi untuk menampilkan notifikasi
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = 'notification ' + type;
+            notification.style.display = 'block';
+            
+            // Sembunyikan notifikasi setelah 5 detik
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Fungsi untuk mengambil data dari spreadsheet
+        async function loadData() {
+            try {
+                // Tambahkan timestamp untuk menghindari cache
+                const timestamp = new Date().getTime();
+                const response = await fetch(`${SCRIPT_URL}?action=getData&t=${timestamp}`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    displayData(data.data);
+                } else {
+                    showNotification('Gagal memuat data: ' + data.message, 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('Terjadi kesalahan: ' + error.message, 'error');
+            }
+        }
+        
+        // Fungsi untuk menampilkan data di tabel
+        function displayData(data) {
+            const tableBody = document.querySelector('#tugasTable tbody');
+            tableBody.innerHTML = '';
+            
+            if (data.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="4" style="text-align: center;">Belum ada data tugas</td>';
+                tableBody.appendChild(tr);
+                return;
+            }
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.namaGuru}</td>
+                    <td>${row.kelas}</td>
+                    <td>${row.judulTugas}</td>
+                    <td><a href="${row.linkTugas}" target="_blank">Lihat Tugas</a></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+        
+        // Event listener untuk form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const namaGuru = document.getElementById('namaGuru').value;
+            const kelas = document.getElementById('kelas').value;
+            const judulTugas = document.getElementById('judulTugas').value;
+            const fileInput = document.getElementById('fileTugas');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showNotification('Silakan pilih file untuk diupload', 'error');
+                return;
+            }
+            
+            // Baca file sebagai base64
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const base64 = event.target.result.split(',')[1]; // Hapus header data URL
+                
+                const data = {
+                    namaGuru: namaGuru,
+                    kelas: kelas,
+                    judulTugas: judulTugas,
+                    fileData: base64,
+                    fileName: file.name,
+                    mimeType: file.type
+                };
+                
+                try {
+                    const response = await fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'cors',
+                        body: JSON.stringify(data),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        showNotification('Tugas berhasil diupload!', 'success');
+                        document.getElementById('uploadForm').reset();
+                        loadData(); // Refresh data
+                    } else {
+                        showNotification('Gagal upload: ' + result.message, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('Terjadi kesalahan: ' + error.message, 'error');
+                }
+            };
+            
+            reader.readAsDataURL(file);
+        });
+        
+        // Load data saat halaman dimuat
+        window.onload = function() {
+            loadData();
+        };
+    </script>
+</body>
+</html>
