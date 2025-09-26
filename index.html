@@ -380,6 +380,17 @@
             background-color: #dc3545;
         }
 
+        .debug-panel {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 0.8rem;
+            display: none;
+        }
+
         /* Hidden iframe for form submission */
         #hiddenFrame {
             display: none;
@@ -493,6 +504,8 @@
                 <div id="progressBar" class="progress-bar">0%</div>
             </div>
             
+            <div id="debugPanel" class="debug-panel"></div>
+            
             <form id="uploadForm" target="hiddenFrame">
                 <div class="form-group">
                     <label for="namaGuru">Nama Guru</label>
@@ -572,6 +585,14 @@
     <script>
         // Ganti dengan URL web app dari Google Apps Script
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0HzN8eH5tgZ4ujAvoRfe1DryKfSW4wp5rv8_2jNqLKRTbY_d63y8lYOZ0lFm7qE5k/exec';
+        
+        // Debug function
+        function debug(message) {
+            const debugPanel = document.getElementById('debugPanel');
+            debugPanel.style.display = 'block';
+            debugPanel.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            console.log(message);
+        }
         
         // Fungsi untuk menampilkan notifikasi
         function showNotification(message, type) {
@@ -655,7 +676,7 @@
         window.addEventListener('online', updateConnectionStatus);
         window.addEventListener('offline', updateConnectionStatus);
         
-        // Fungsi untuk mengambil data dari spreadsheet dengan pendekatan yang lebih sederhana
+        // Fungsi untuk mengambil data dari spreadsheet dengan pendekatan multi-layer
         function loadData() {
             return new Promise((resolve, reject) => {
                 // Cek koneksi internet terlebih dahulu
@@ -664,59 +685,184 @@
                     return;
                 }
                 
-                // Gunakan pendekatan JSONP untuk menghindari masalah CORS
-                const callbackName = 'jsonpCallback_' + Math.floor(Math.random() * 1000000);
+                debug('Mencoba memuat data...');
                 
-                // Buat fungsi callback global
-                window[callbackName] = function(response) {
-                    // Hapus fungsi callback global
-                    delete window[callbackName];
+                // Pendekatan 1: Coba dengan fetch biasa
+                try {
+                    const timestamp = new Date().getTime();
+                    const url = `${SCRIPT_URL}?action=getData&t=${timestamp}`;
                     
-                    // Hapus script element
-                    const script = document.getElementById(callbackName + '_script');
-                    if (script) {
-                        document.body.removeChild(script);
-                    }
+                    debug('Mencoba pendekatan 1: fetch biasa');
                     
-                    if (response && response.status === 'success') {
-                        resolve(response.data || []);
-                    } else {
-                        reject(new Error(response?.message || 'Gagal memuat data'));
+                    fetch(url)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            debug('Pendekatan 1 berhasil');
+                            if (data.status === 'success') {
+                                resolve(data.data || []);
+                            } else {
+                                throw new Error(data.message || 'Gagal memuat data');
+                            }
+                        })
+                        .catch(error => {
+                            debug(`Pendekatan 1 gagal: ${error.message}`);
+                            // Lanjut ke pendekatan 2
+                            tryJsonp();
+                        });
+                } catch (error) {
+                    debug(`Error di pendekatan 1: ${error.message}`);
+                    // Lanjut ke pendekatan 2
+                    tryJsonp();
+                }
+                
+                // Pendekatan 2: Gunakan JSONP
+                function tryJsonp() {
+                    try {
+                        debug('Mencoba pendekatan 2: JSONP');
+                        
+                        const callbackName = 'jsonpCallback_' + Math.floor(Math.random() * 1000000);
+                        
+                        // Buat fungsi callback global
+                        window[callbackName] = function(response) {
+                            // Hapus fungsi callback global
+                            delete window[callbackName];
+                            
+                            // Hapus script element
+                            const script = document.getElementById(callbackName + '_script');
+                            if (script) {
+                                document.body.removeChild(script);
+                            }
+                            
+                            debug('JSONP response received');
+                            if (response && response.status === 'success') {
+                                debug('JSONP berhasil');
+                                resolve(response.data || []);
+                            } else {
+                                throw new Error(response?.message || 'Gagal memuat data');
+                            }
+                        };
+                        
+                        // Buat script element untuk JSONP
+                        const script = document.createElement('script');
+                        script.id = callbackName + '_script';
+                        const timestamp = new Date().getTime();
+                        script.src = `${SCRIPT_URL}?action=getData&t=${timestamp}&callback=${callbackName}`;
+                        
+                        // Handle error
+                        script.onerror = function() {
+                            // Hapus fungsi callback global
+                            delete window[callbackName];
+                            // Hapus script element
+                            if (document.getElementById(callbackName + '_script')) {
+                                document.body.removeChild(document.getElementById(callbackName + '_script'));
+                            }
+                            debug('JSONP error');
+                            // Lanjut ke pendekatan 3
+                            tryIframe();
+                        };
+                        
+                        // Tambahkan script ke DOM
+                        document.body.appendChild(script);
+                        
+                        // Timeout untuk mencegah loading terus menerus
+                        setTimeout(() => {
+                            if (window[callbackName]) {
+                                // Hapus fungsi callback global
+                                delete window[callbackName];
+                                // Hapus script element
+                                if (document.getElementById(callbackName + '_script')) {
+                                    document.body.removeChild(document.getElementById(callbackName + '_script'));
+                                }
+                                debug('JSONP timeout');
+                                // Lanjut ke pendekatan 3
+                                tryIframe();
+                            }
+                        }, 10000); // 10 detik timeout
+                    } catch (error) {
+                        debug(`Error di pendekatan 2: ${error.message}`);
+                        // Lanjut ke pendekatan 3
+                        tryIframe();
                     }
-                };
+                }
                 
-                // Buat script element untuk JSONP
-                const script = document.createElement('script');
-                script.id = callbackName + '_script';
-                const timestamp = new Date().getTime();
-                script.src = `${SCRIPT_URL}?action=getData&t=${timestamp}&callback=${callbackName}`;
-                
-                // Handle error
-                script.onerror = function() {
-                    // Hapus fungsi callback global
-                    delete window[callbackName];
-                    // Hapus script element
-                    if (document.getElementById(callbackName + '_script')) {
-                        document.body.removeChild(document.getElementById(callbackName + '_script'));
+                // Pendekatan 3: Gunakan iframe form submission
+                function tryIframe() {
+                    try {
+                        debug('Mencoba pendekatan 3: iframe form submission');
+                        
+                        // Buat iframe tersembunyi
+                        const iframe = document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        iframe.name = 'dataFrame_' + Date.now();
+                        document.body.appendChild(iframe);
+                        
+                        // Buat form
+                        const form = document.createElement('form');
+                        form.method = 'GET';
+                        form.action = SCRIPT_URL;
+                        form.target = iframe.name;
+                        
+                        // Tambahkan parameter
+                        const actionInput = document.createElement('input');
+                        actionInput.name = 'action';
+                        actionInput.value = 'getData';
+                        form.appendChild(actionInput);
+                        
+                        const timestampInput = document.createElement('input');
+                        timestampInput.name = 't';
+                        timestampInput.value = Date.now();
+                        form.appendChild(timestampInput);
+                        
+                        // Event listener untuk iframe
+                        iframe.onload = function() {
+                            try {
+                                const iframeContent = iframe.contentDocument.body.innerText;
+                                debug('Iframe content: ' + iframeContent.substring(0, 100));
+                                
+                                try {
+                                    const data = JSON.parse(iframeContent);
+                                    if (data.status === 'success') {
+                                        debug('Iframe berhasil');
+                                        resolve(data.data || []);
+                                    } else {
+                                        throw new Error(data.message || 'Gagal memuat data');
+                                    }
+                                } catch (parseError) {
+                                    debug('Error parsing iframe content: ' + parseError.message);
+                                    throw new Error('Gagal memproses respons');
+                                }
+                            } catch (error) {
+                                debug('Error processing iframe: ' + error.message);
+                                throw error;
+                            } finally {
+                                // Hapus iframe
+                                document.body.removeChild(iframe);
+                            }
+                        };
+                        
+                        // Submit form
+                        document.body.appendChild(form);
+                        form.submit();
+                        document.body.removeChild(form);
+                        
+                        // Timeout
+                        setTimeout(() => {
+                            if (document.body.contains(iframe)) {
+                                document.body.removeChild(iframe);
+                                debug('Iframe timeout');
+                                reject(new Error('Request timeout'));
+                            }
+                        }, 15000); // 15 detik timeout
+                    } catch (error) {
+                        debug(`Error di pendekatan 3: ${error.message}`);
+                        reject(new Error('Semua pendekatan gagal. Periksa koneksi internet Anda.'));
                     }
-                    reject(new Error('Gagal memuat data'));
-                };
-                
-                // Tambahkan script ke DOM
-                document.body.appendChild(script);
-                
-                // Timeout untuk mencegah loading terus menerus
-                setTimeout(() => {
-                    if (window[callbackName]) {
-                        // Hapus fungsi callback global
-                        delete window[callbackName];
-                        // Hapus script element
-                        if (document.getElementById(callbackName + '_script')) {
-                            document.body.removeChild(document.getElementById(callbackName + '_script'));
-                        }
-                        reject(new Error('Request timeout'));
-                    }
-                }, 10000); // 10 detik timeout
+                }
             });
         }
         
@@ -808,6 +954,8 @@
             toggleProgress(true);
             updateProgress(0);
             
+            debug('Memulai upload file...');
+            
             // Baca file sebagai base64
             const reader = new FileReader();
             
@@ -821,6 +969,8 @@
             
             reader.onload = async function(event) {
                 const base64 = event.target.result.split(',')[1]; // Hapus header data URL
+                
+                debug('File dibaca, mengirim ke server...');
                 
                 // Buat form data untuk iframe submission
                 const form = document.createElement('form');
@@ -850,6 +1000,8 @@
                 // Hapus form dari body
                 document.body.removeChild(form);
                 
+                debug('Form disubmit, menunggu response...');
+                
                 // Simulasi progress untuk user feedback
                 let progress = 0;
                 const progressInterval = setInterval(() => {
@@ -869,16 +1021,19 @@
                     document.getElementById('uploadForm').reset();
                     document.getElementById('fileLabel').textContent = 'Pilih file tugas';
                     
+                    debug('Upload selesai, refresh data...');
+                    
                     // Refresh data setelah upload
                     setTimeout(() => {
                         refreshData();
                     }, 2000);
-                }, 5000); // 5 detik timeout
+                }, 8000); // 8 detik timeout
             };
             
             reader.onerror = function() {
                 toggleLoading(false);
                 toggleProgress(false);
+                debug('Error membaca file');
                 showNotification('Gagal membaca file', 'error');
             };
             
@@ -907,10 +1062,11 @@
             
             loadData()
                 .then(data => {
+                    debug('Data berhasil dimuat: ' + data.length + ' item');
                     displayData(data);
                 })
                 .catch(error => {
-                    console.error('Error loading data:', error);
+                    debug('Error loading data: ' + error.message);
                     showDataError();
                 });
         }
