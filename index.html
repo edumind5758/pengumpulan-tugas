@@ -173,12 +173,6 @@
             box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
         }
 
-        .btn:disabled {
-            background: var(--gray-color);
-            cursor: not-allowed;
-            transform: none;
-        }
-
         .btn-block {
             display: block;
             width: 100%;
@@ -225,11 +219,6 @@
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto 15px;
-        }
-
-        /* Sembunyikan teks loading */
-        .loading p {
-            display: none;
         }
 
         @keyframes spin {
@@ -348,16 +337,6 @@
             background: #e67e22;
         }
 
-        .refresh-button {
-            background: var(--primary-color);
-            margin: 20px auto;
-            display: block;
-        }
-
-        .refresh-button:hover {
-            background: var(--secondary-color);
-        }
-
         .connection-status {
             position: fixed;
             bottom: 20px;
@@ -446,7 +425,7 @@
     <div class="container">
         <div class="app-header">
             <h1><i class="fas fa-chalkboard-teacher"></i> Upload Tugas RPP Guru</h1>
-            <p>Platform untuk mengumpulkan tugas RPP secara digital @Midarno</p>
+            <p>Platform untuk mengumpulkan tugas RPP secara digital</p>
         </div>
 
         <div class="stats-container">
@@ -490,7 +469,7 @@
                 
                 <div class="form-group">
                     <label for="kelas">Kelas</label>
-                    <input type="text" id="kelas" name="kelas" required placeholder="Contoh: 6C">
+                    <input type="text" id="kelas" name="kelas" required placeholder="Contoh: X IPA 1">
                 </div>
                 
                 <div class="form-group">
@@ -520,9 +499,10 @@
                 <i class="fas fa-list"></i> Data Tugas yang Telah Diupload
             </div>
             
-            <button id="refreshButton" class="btn refresh-button">
-                <i class="fas fa-sync-alt"></i> Refresh Data
-            </button>
+            <div id="dataLoading" class="loading">
+                <div class="spinner"></div>
+                <p>Memuat data...</p>
+            </div>
             
             <div id="dataError" style="display: none; text-align: center; padding: 20px;">
                 <i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--warning-color); margin-bottom: 10px;"></i>
@@ -581,33 +561,26 @@
         
         // Fungsi untuk menampilkan/menyembunyikan loading data
         function toggleDataLoading(show) {
-            const refreshButton = document.getElementById('refreshButton');
+            const dataLoading = document.getElementById('dataLoading');
             const dataError = document.getElementById('dataError');
             const tableContainer = document.getElementById('tableContainer');
             
             if (show) {
-                // Ubah tombol refresh menjadi status loading
-                refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memuat Data...';
-                refreshButton.disabled = true;
+                dataLoading.style.display = 'block';
                 dataError.style.display = 'none';
                 tableContainer.style.display = 'none';
             } else {
-                // Kembalikan tombol refresh ke keadaan normal
-                refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
-                refreshButton.disabled = false;
+                dataLoading.style.display = 'none';
             }
         }
         
         // Fungsi untuk menampilkan error data
         function showDataError() {
-            const refreshButton = document.getElementById('refreshButton');
+            const dataLoading = document.getElementById('dataLoading');
             const dataError = document.getElementById('dataError');
             const tableContainer = document.getElementById('tableContainer');
             
-            // Kembalikan tombol refresh ke keadaan normal
-            refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
-            refreshButton.disabled = false;
-            
+            dataLoading.style.display = 'none';
             dataError.style.display = 'block';
             tableContainer.style.display = 'none';
         }
@@ -847,11 +820,6 @@
             refreshData();
         });
         
-        // Event listener untuk tombol refresh
-        document.getElementById('refreshButton').addEventListener('click', function() {
-            refreshData();
-        });
-        
         // Fungsi untuk refresh data
         function refreshData() {
             toggleDataLoading(true);
@@ -859,7 +827,6 @@
             loadData()
                 .then(data => {
                     displayData(data);
-                    toggleDataLoading(false);
                 })
                 .catch(error => {
                     console.error('Error loading data:', error);
